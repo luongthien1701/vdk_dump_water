@@ -2,17 +2,15 @@
 #include <WebSocketsClient.h>
 #include <ArduinoJson.h>
 
-// =======================
-// Cấu hình mạng & Server
-// =======================
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+const char* ssid = "...";
+const char* password = "12345678";
 
-// IP của máy tính đang chạy Node.js Server
-const char* server_host = "192.168.1.x"; 
+const char* server_host = "192.168.35.183"; 
 const uint16_t server_port = 3000;
 
 WebSocketsClient webSocket;
+
+void sendDataToServer(unsigned long currentMillis, bool force = false);
 
 // =======================
 // Trạng thái hệ thống
@@ -24,31 +22,26 @@ unsigned long lastIdleMillis = 0;
 bool isPumpOn = false;
 bool isAutoMode = true;
 int currentSoilValue = 4095; // Mặc định là khô
+bool pumpStateChanged = false;
 
 enum State { INIT, IDLE, PUMPING, WAIT };
 State currentState = INIT;
 
-// =======================
-// Cấu hình phần cứng
-// =======================
-#define SOIL_PIN 0
+#define SOIL_PIN 0 // Chân 0 trên ESP32-C3 thuộc ADC1 nên dùng hoàn toàn bình thường khi có WiFi
 #define RELAY_PIN 4
 
-// =======================
-// Các ngưỡng cấu hình
-// =======================
 #define DRY_THRESHOLD 3000
-#define PUMP_TIME 500
+#define PUMP_TIME 2000
 #define WAIT_TIME 5000
 #define SAMPLE_SIZE 7
 #define INIT_TIME 3000
 
-// =======================
-// Hàm tiện ích
-// =======================
 void setPumpState(bool state) {
-  isPumpOn = state;
-  digitalWrite(RELAY_PIN, state ? HIGH : LOW);
+  if (isPumpOn != state) {
+    isPumpOn = state;
+    digitalWrite(RELAY_PIN, state ? HIGH : LOW);
+    pumpStateChanged = true;
+  }
 }
 
 int getMedianValue() {
@@ -56,10 +49,8 @@ int getMedianValue() {
 
   for (int i = 0; i < SAMPLE_SIZE; i++) {
     arr[i] = analogRead(SOIL_PIN);
-    delay(20); 
   }
 
-  // Sắp xếp mảng (Bubble sort)
   for (int i = 0; i < SAMPLE_SIZE - 1; i++) {
     for (int j = i + 1; j < SAMPLE_SIZE; j++) {
       if (arr[i] > arr[j]) {
@@ -70,13 +61,9 @@ int getMedianValue() {
     }
   }
 
-  // Trả về giá trị trung vị
   return arr[SAMPLE_SIZE / 2];
 }
 
-// =======================
-// Khởi tạo hệ thống
-// =======================
 void setupWiFi() {
   Serial.print("Đang kết nối WiFi");
   WiFi.begin(ssid, password);
@@ -87,29 +74,24 @@ void setupWiFi() {
   }
   
   Serial.println("\nKết nối WiFi thành công!");
-  Serial.print("IP ESP32: ");
-  Serial.println(WiFi.localIP());
 }
 
-// =======================
-// Xử lý WebSocket
-// =======================
 void processWebSocketMessage(uint8_t * payload) {
   StaticJsonDocument<200> doc;
   DeserializationError error = deserializeJson(doc, payload);
 
   if (error) return;
 
+  bool stateChanged = false;
+
   if (doc.containsKey("action")) {
     const char* action = doc["action"];
     
-    // Lệnh bật bơm
     if (strcmp(action, "ON") == 0) {
       if (!isAutoMode) {
         Serial.println("-> [WEB] Lệnh BẬT bơm (Thủ công)");
         setPumpState(true);
-        currentState = PUMPING;
-        previousMillis = millis(); 
+        stateChanged = true;
       } else {
         Serial.println("-> [WEB] Bo qua lenh ON vi dang o che do AUTO");
       }
@@ -119,8 +101,7 @@ void processWebSocketMessage(uint8_t * payload) {
       if (!isAutoMode) {
         Serial.println("-> [WEB] Lệnh TẮT bơm (Thủ công)");
         setPumpState(false);
-        currentState = WAIT;
-        previousMillis = millis();
+        stateChanged = true;
       } else {
         Serial.println("-> [WEB] Bo qua lenh OFF vi dang o che do AUTO");
       }
@@ -132,13 +113,19 @@ void processWebSocketMessage(uint8_t * payload) {
           Serial.println("-> [WEB] Chuyen che do: AUTO");
           isAutoMode = true;
           currentState = IDLE; // Đặt lại trạng thái để hệ thống tự động kiểm tra lại cảm biến
+          stateChanged = true;
       } else if (strcmp(mode, "MANUAL") == 0) {
           Serial.println("-> [WEB] Chuyen che do: MANUAL");
           isAutoMode = false;
           setPumpState(false); // Tắt bơm để an toàn khi mới chuyển sang thủ công
           currentState = IDLE;
+          stateChanged = true;
       }
     }
+  }
+
+  if (stateChanged) {
+    sendDataToServer(millis(), true); // Phản hồi ngay lập tức
   }
 }
 
@@ -169,25 +156,15 @@ void updateStateMachine(unsigned long currentMillis) {
       break;
 
     case IDLE:
-      // Mỗi 1 giây đọc cảm biến 1 lần thay vì delay
-      if (currentMillis - lastIdleMillis >= 1000) {
-        lastIdleMillis = currentMillis;
-        currentSoilValue = getMedianValue();
-
-        Serial.print("\n[STATE] IDLE | Median Soil: ");
-        Serial.println(currentSoilValue);
-
-        // Chỉ tự động điều khiển bơm khi ở chế độ AUTO
-        if (isAutoMode) {
-          if (currentSoilValue > DRY_THRESHOLD) {
-            Serial.println("=> DAT KHO -> BAT BOM");
-            setPumpState(true);
-            previousMillis = currentMillis;
-            currentState = PUMPING;
-          } else {
-            Serial.println("=> Dat OK -> KHONG BOM");
-            setPumpState(false);
-          }
+      // Chỉ tự động điều khiển bơm khi ở chế độ AUTO
+      if (isAutoMode) {
+        if (currentSoilValue > DRY_THRESHOLD) {
+          Serial.println("=> DAT KHO -> BAT BOM (AUTO)");
+          setPumpState(true);
+          previousMillis = currentMillis;
+          currentState = PUMPING;
+        } else {
+          setPumpState(false);
         }
       }
       break;
@@ -213,8 +190,8 @@ void updateStateMachine(unsigned long currentMillis) {
 // =======================
 // Gửi dữ liệu lên Server
 // =======================
-void sendDataToServer(unsigned long currentMillis) {
-  if (currentMillis - lastDataTime >= 2000) {
+void sendDataToServer(unsigned long currentMillis, bool force) {
+  if (force || (currentMillis - lastDataTime >= 1000)) {
     lastDataTime = currentMillis;
     
     // Quy đổi giá trị soil raw (0-4095) thành độ ẩm %
@@ -260,6 +237,18 @@ void loop() {
   
   unsigned long currentMillis = millis();
 
+  // Đọc cảm biến liên tục mỗi 1s, bất kể state nào
+  if (currentMillis - lastIdleMillis >= 1000) {
+    lastIdleMillis = currentMillis;
+    currentSoilValue = getMedianValue();
+  }
+
   updateStateMachine(currentMillis);
-  sendDataToServer(currentMillis);
+  
+  if (pumpStateChanged) {
+    sendDataToServer(currentMillis, true);
+    pumpStateChanged = false;
+  } else {
+    sendDataToServer(currentMillis, false);
+  }
 }

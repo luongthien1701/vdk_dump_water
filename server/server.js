@@ -8,10 +8,11 @@ const PORT = 3000;
 
 // Middleware
 app.use(cors());
-app.use(express.json()); // Để parse JSON (nếu cần trong tương lai)
+app.use(express.json());
 
 // Biến lưu trữ trạng thái hệ thống
 let esp32Connection = null;
+const webClients = new Set();
 let currentData = {
     humidity: 0,
     pump: "OFF",
@@ -22,104 +23,102 @@ let currentData = {
 // Tạo HTTP server từ Express app
 const server = http.createServer(app);
 
-// Khởi tạo WebSocket server chia sẻ cùng port với HTTP server
+// Khởi tạo WebSocket server
 const wss = new WebSocketServer({ server });
 
-// Xử lý kết nối WebSocket từ ESP32
-wss.on('connection', (ws) => {
-    console.log('[WS] ESP32 Connected');
-    esp32Connection = ws;
-    currentData.esp32_connected = true;
+// Hàm gửi dữ liệu trạng thái cho tất cả Web Clients
+function broadcastToWebClients() {
+    const dataString = JSON.stringify(currentData);
+    for (const client of webClients) {
+        if (client.readyState === 1) { // 1 = OPEN
+            client.send(dataString);
+        }
+    }
+}
 
-    // Khi nhận được tin nhắn từ ESP32
+// Xử lý kết nối WebSocket
+wss.on('connection', (ws) => {
+    let isESP32 = false;
+    let isWeb = false;
+
+    // Khi nhận được tin nhắn từ bất kỳ client nào
     ws.on('message', (message) => {
         try {
             const dataString = message.toString();
-            // console.log('[WS] Nhận dữ liệu từ ESP32:', dataString);
-            
             const parsedData = JSON.parse(dataString);
-            // Cập nhật dữ liệu hiện tại
-            if (parsedData.humidity !== undefined) {
-                currentData.humidity = parsedData.humidity;
+
+            // 1. Phân biệt client là Web Client
+            if (parsedData.client === "WEB" && !isWeb) {
+                isWeb = true;
+                webClients.add(ws);
+                console.log('[WS] Web Client Connected');
+                // Gửi ngay trạng thái hiện tại cho Web Client mới
+                ws.send(JSON.stringify(currentData));
             }
-            if (parsedData.pump !== undefined) {
-                currentData.pump = parsedData.pump;
+
+            // Nếu chỉ là gói tin định danh ban đầu (không có lệnh) thì dừng xử lý
+            if (parsedData.client === "WEB" && !parsedData.action) {
+                return;
             }
-            if (parsedData.mode !== undefined) {
-                currentData.mode = parsedData.mode;
+
+            // 2. Nhận lệnh điều khiển từ Web Client
+            if (isWeb && parsedData.action) {
+                console.log(`[WS] Nhận lệnh từ Web: ${parsedData.action}`);
+                if (esp32Connection && esp32Connection.readyState === 1) {
+                    // Gửi lệnh xuống ESP32
+                    const command = JSON.stringify({ 
+                        action: parsedData.action, 
+                        mode: parsedData.mode 
+                    });
+                    esp32Connection.send(command);
+                    console.log(`[WS] Đã gửi lệnh xuống ESP32:`, command);
+                } else {
+                    console.log('[WS] Thất bại: ESP32 chưa kết nối');
+                }
+                return;
+            }
+
+            // 3. Xử lý dữ liệu từ ESP32 (Nếu không phải Web, và có chứa data cảm biến)
+            if (!isWeb && (parsedData.humidity !== undefined || parsedData.pump !== undefined || parsedData.mode !== undefined)) {
+                if (!isESP32) {
+                    isESP32 = true;
+                    esp32Connection = ws;
+                    currentData.esp32_connected = true;
+                    console.log('[WS] ESP32 Connected/Identified');
+                    broadcastToWebClients(); // Báo cho web biết ESP32 đã online
+                }
+
+                // Cập nhật dữ liệu hiện tại
+                if (parsedData.humidity !== undefined) currentData.humidity = parsedData.humidity;
+                if (parsedData.pump !== undefined) currentData.pump = parsedData.pump;
+                if (parsedData.mode !== undefined) currentData.mode = parsedData.mode;
+
+                // Broadcast thông tin mới nhất cho tất cả Web Clients
+                broadcastToWebClients();
             }
         } catch (error) {
-            console.error('[WS] Lỗi parse JSON từ ESP32:', error);
+            console.error('[WS] Lỗi parse JSON:', error);
         }
     });
 
-    // Xử lý khi ESP32 ngắt kết nối
+    // Xử lý khi client ngắt kết nối
     ws.on('close', () => {
-        console.log('[WS] ESP32 Disconnected');
-        esp32Connection = null;
-        currentData.esp32_connected = false;
+        if (isWeb) {
+            console.log('[WS] Web Client Disconnected');
+            webClients.delete(ws);
+        }
+        if (isESP32) {
+            console.log('[WS] ESP32 Disconnected');
+            esp32Connection = null;
+            currentData.esp32_connected = false;
+            broadcastToWebClients(); // Báo cho web biết ESP32 đã offline
+        }
     });
 
     // Bắt lỗi socket
     ws.on('error', (error) => {
         console.error('[WS] WebSocket Error:', error);
     });
-});
-
-// ==========================
-// REST APIs cho Web Frontend
-// ==========================
-
-// API Lấy dữ liệu cảm biến & trạng thái
-app.get('/data', (req, res) => {
-    res.json(currentData);
-});
-
-// API Bật bơm
-app.post('/pump/on', (req, res) => {
-    console.log('[API] Yêu cầu BẬT bơm từ Web');
-    if (esp32Connection && esp32Connection.readyState === esp32Connection.OPEN) {
-        // Gửi lệnh xuống ESP32
-        const command = JSON.stringify({ action: "ON" });
-        esp32Connection.send(command);
-        console.log('[WS] Đã gửi lệnh ON xuống ESP32');
-        
-        // Trả về success (Lưu ý: chưa chắc ESP32 đã bật ngay, tuỳ logic ESP)
-        res.json({ success: true, message: "Đã gửi lệnh bật bơm" });
-    } else {
-        console.log('[API] Thất bại: ESP32 chưa kết nối');
-        res.status(503).json({ success: false, message: "ESP32 chưa kết nối" });
-    }
-});
-
-// API Tắt bơm
-app.post('/pump/off', (req, res) => {
-    console.log('[API] Yêu cầu TẮT bơm từ Web');
-    if (esp32Connection && esp32Connection.readyState === esp32Connection.OPEN) {
-        // Gửi lệnh xuống ESP32
-        const command = JSON.stringify({ action: "OFF" });
-        esp32Connection.send(command);
-        console.log('[WS] Đã gửi lệnh OFF xuống ESP32');
-        
-        res.json({ success: true, message: "Đã gửi lệnh tắt bơm" });
-    } else {
-        console.log('[API] Thất bại: ESP32 chưa kết nối');
-        res.status(503).json({ success: false, message: "ESP32 chưa kết nối" });
-    }
-});
-
-// API Đổi chế độ (AUTO/MANUAL)
-app.post('/mode', (req, res) => {
-    console.log('[API] Yêu cầu đổi chế độ:', req.body.mode);
-    if (esp32Connection && esp32Connection.readyState === esp32Connection.OPEN) {
-        const command = JSON.stringify({ action: "MODE", mode: req.body.mode });
-        esp32Connection.send(command);
-        console.log(`[WS] Đã gửi lệnh chuyển chế độ ${req.body.mode} xuống ESP32`);
-        res.json({ success: true, message: `Đã chuyển sang chế độ ${req.body.mode}` });
-    } else {
-        console.log('[API] Thất bại: ESP32 chưa kết nối');
-        res.status(503).json({ success: false, message: "ESP32 chưa kết nối" });
-    }
 });
 
 // Start Server

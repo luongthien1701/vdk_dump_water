@@ -1,5 +1,5 @@
-// Khai báo địa chỉ IP của Node.js Server
-const SERVER_URL = "http://localhost:3000";
+// Khai báo địa chỉ WebSocket Server
+const WS_URL = "ws://localhost:3000";
 
 // Lấy các phần tử DOM cần thiết để tương tác
 const humidityValue = document.getElementById('humidity-value');
@@ -45,7 +45,7 @@ function updateConnectionStatus(isServerConnected, isEsp32Connected = false) {
     } else {
         esp32Status.textContent = "Offline";
         esp32Status.className = "status-badge disconnected";
-        
+
         // Nếu ESP32 offline, reset dữ liệu hiển thị
         if (!isServerConnected || !isEsp32Connected) {
             updateUI({ humidity: '--', pump: 'Unknown' });
@@ -59,14 +59,14 @@ function updateUI(data) {
     if (data.humidity !== undefined && data.humidity !== '--') {
         const h = parseInt(data.humidity);
         humidityValue.textContent = h + '%';
-        
+
         // Vòng tròn độ ẩm: thiết lập độ dài stroke (0 - 100)
         humidityCircle.setAttribute('stroke-dasharray', `${h}, 100`);
-        
+
         // Đổi màu vòng tròn theo mức độ ẩm
-        if(h < 30) {
+        if (h < 30) {
             humidityCircle.style.stroke = '#f56565'; // Đỏ (Khô)
-        } else if(h < 60) {
+        } else if (h < 60) {
             humidityCircle.style.stroke = '#ed8936'; // Cam (Vừa)
         } else {
             humidityCircle.style.stroke = '#4299e1'; // Xanh (Ẩm)
@@ -91,9 +91,9 @@ function updateUI(data) {
         pumpStatus.className = isON ? "badge on" : "badge off";
 
         if (data.pump === 'Unknown') {
-             pumpStatus.textContent = "Unknown";
-             pumpStatus.className = "badge unknown";
-             isON = false;
+            pumpStatus.textContent = "Unknown";
+            pumpStatus.className = "badge unknown";
+            isON = false;
         }
 
         if (isON) {
@@ -116,12 +116,12 @@ function updateUI(data) {
         isAutoMode = data.mode === "AUTO";
         btnMode.textContent = isAutoMode ? "Tự động" : "Thủ công";
         btnMode.className = isAutoMode ? "badge auto" : "badge manual";
-        
+
         // Vô hiệu hóa nút Bật/Tắt nếu đang ở chế độ Tự động
         btnOn.disabled = isAutoMode;
         btnOff.disabled = isAutoMode;
-        
-        if(isAutoMode) {
+
+        if (isAutoMode) {
             btnOn.style.opacity = '0.5';
             btnOff.style.opacity = '0.5';
             btnOn.style.cursor = 'not-allowed';
@@ -135,126 +135,73 @@ function updateUI(data) {
     }
 }
 
-// Hàm gửi yêu cầu BẬT bơm
-async function turnOnPump() {
-    try {
-        btnOn.disabled = true;
-        showLoading(true);
-        
-        // Cập nhật UI ngay lập tức (Optimistic UI) cho cảm giác phản hồi nhanh
-        updateUI({ pump: "ON", humidity: humidityValue.textContent.replace('%', '') });
+// Khởi tạo kết nối WebSocket
+let socket = null;
 
-        const response = await fetch(`${SERVER_URL}/pump/on`, {
-            method: 'POST'
-        });
+function initWebSocket() {
+    socket = new WebSocket(WS_URL);
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+    socket.onopen = () => {
+        console.log("Đã kết nối tới WebSocket server");
+        updateConnectionStatus(true);
+        // Định danh là Web Client
+        socket.send(JSON.stringify({ client: "WEB" }));
+    };
+
+    socket.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            updateConnectionStatus(true, data.esp32_connected);
+            
+            if (data.esp32_connected) {
+                updateUI(data);
+            }
+        } catch (error) {
+            console.error("Lỗi parse JSON từ server:", error);
         }
+    };
 
-        await fetchData();
-    } catch (error) {
-        console.error("Lỗi khi bật bơm:", error);
-    } finally {
-        btnOn.disabled = isAutoMode;
-        showLoading(false);
-    }
+    socket.onclose = () => {
+        console.log("Mất kết nối server. Đang thử lại sau 3s...");
+        updateConnectionStatus(false, false);
+        setTimeout(initWebSocket, 3000);
+    };
+
+    socket.onerror = (error) => {
+        console.error("Lỗi WebSocket:", error);
+        socket.close();
+    };
+}
+
+// Hàm gửi yêu cầu BẬT bơm
+function turnOnPump() {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    btnOn.disabled = true;
+    updateUI({ pump: "ON", humidity: humidityValue.textContent.replace('%', '') });
+    socket.send(JSON.stringify({ client: "WEB", action: "ON" }));
+    setTimeout(() => { btnOn.disabled = isAutoMode; }, 500);
 }
 
 // Hàm gửi yêu cầu TẮT bơm
-async function turnOffPump() {
-    try {
-        btnOff.disabled = true;
-        showLoading(true);
-
-        // Cập nhật UI ngay lập tức
-        updateUI({ pump: "OFF", humidity: humidityValue.textContent.replace('%', '') });
-
-        const response = await fetch(`${SERVER_URL}/pump/off`, {
-            method: 'POST'
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        await fetchData();
-    } catch (error) {
-        console.error("Lỗi khi tắt bơm:", error);
-    } finally {
-        btnOff.disabled = isAutoMode;
-        showLoading(false);
-    }
+function turnOffPump() {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    btnOff.disabled = true;
+    updateUI({ pump: "OFF", humidity: humidityValue.textContent.replace('%', '') });
+    socket.send(JSON.stringify({ client: "WEB", action: "OFF" }));
+    setTimeout(() => { btnOff.disabled = isAutoMode; }, 500);
 }
 
 // Hàm đổi chế độ (AUTO / MANUAL)
-async function toggleMode() {
-    try {
-        btnMode.disabled = true;
-        showLoading(true);
-
-        const newMode = isAutoMode ? "MANUAL" : "AUTO";
-        
-        // Cập nhật UI ngay lập tức
-        updateUI({ mode: newMode, pump: pumpStatus.textContent, humidity: humidityValue.textContent.replace('%', '') });
-
-        const response = await fetch(`${SERVER_URL}/mode`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ mode: newMode })
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        await fetchData();
-    } catch (error) {
-        console.error("Lỗi khi đổi chế độ:", error);
-    } finally {
-        btnMode.disabled = false;
-        showLoading(false);
-    }
+function toggleMode() {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    btnMode.disabled = true;
+    const newMode = isAutoMode ? "MANUAL" : "AUTO";
+    updateUI({ mode: newMode, pump: pumpStatus.textContent, humidity: humidityValue.textContent.replace('%', '') });
+    socket.send(JSON.stringify({ client: "WEB", action: "MODE", mode: newMode }));
+    setTimeout(() => { btnMode.disabled = false; }, 500);
 }
 
-// Hàm lấy dữ liệu (trạng thái bơm, độ ẩm) từ Server
-async function fetchData() {
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-        const response = await fetch(`${SERVER_URL}/data`, {
-            method: 'GET',
-            signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        
-        updateConnectionStatus(true, data.esp32_connected);
-        
-        // Chỉ cập nhật UI nếu ESP32 đang online, nếu không updateConnectionStatus đã xử lý reset
-        if (data.esp32_connected) {
-             updateUI(data);
-        }
-
-    } catch (error) {
-        console.error("Lỗi kết nối / fetch data:", error);
-        updateConnectionStatus(false, false);
-    }
-}
-
-// Tự động gọi fetchData lần đầu khi trang load xong
+// Khởi tạo khi trang load xong
 document.addEventListener("DOMContentLoaded", () => {
-    fetchData();
-    
-    // Tự động cập nhật dữ liệu định kỳ mỗi 3 giây
-    setInterval(fetchData, 3000);
+    initWebSocket();
 });
