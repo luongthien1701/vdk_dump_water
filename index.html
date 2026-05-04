@@ -8,6 +8,16 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
+<div class="app-layout">
+    <div class="sidebar left-sidebar">
+        <div class="log-panel">
+            <h3>Lệnh điều khiển</h3>
+            <div class="log-container" id="cmd-log-container">
+                <!-- Logs lệnh điều khiển -->
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <header>
             <h1>Hệ thống tưới cây</h1>
@@ -109,6 +119,16 @@
             </div>
         </main>
     </div>
+
+    <div class="sidebar right-sidebar">
+        <div class="log-panel">
+            <h3>Dữ liệu ESP32</h3>
+            <div class="log-container" id="data-log-container">
+                <!-- Logs dữ liệu ESP32 -->
+            </div>
+        </div>
+    </div>
+</div>
     <script src="script.js"></script>
 </body>
 </html>

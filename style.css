@@ -28,9 +28,37 @@ body {
     padding: 20px;
 }
 
-.container {
-    max-width: 480px;
+.app-layout {
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    gap: 24px;
+    max-width: 1500px; /* Tăng từ 1200px lên 1500px cho 3 cột */
     width: 100%;
+    margin: 0 auto;
+}
+
+.container {
+    flex: 1;
+    max-width: 450px; /* Cố định cột bên trái */
+    width: 100%;
+}
+
+.sidebar {
+    flex: 1.5; /* Ưu tiên giãn rộng */
+    max-width: 100%; /* Bỏ giới hạn, cho phép chiếm toàn bộ không gian còn lại */
+    width: 100%;
+}
+
+@media (max-width: 800px) {
+    .app-layout {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .sidebar {
+        max-width: 480px;
+    }
 }
 
 header {
@@ -59,7 +87,7 @@ h1 {
     background: white;
     padding: 6px 12px;
     border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .status-label {
@@ -111,8 +139,15 @@ h1 {
 }
 
 @keyframes pulse {
-    0% { transform: scale(1); opacity: 0.8; }
-    100% { transform: scale(1.1); opacity: 1; }
+    0% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
+
+    100% {
+        transform: scale(1.1);
+        opacity: 1;
+    }
 }
 
 #motor-wheel {
@@ -124,7 +159,9 @@ h1 {
 }
 
 @keyframes spin {
-    100% { transform: rotate(360deg); }
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 .water-flow {
@@ -140,7 +177,9 @@ h1 {
 }
 
 @keyframes flow {
-    to { stroke-dashoffset: 0; }
+    to {
+        stroke-dashoffset: 0;
+    }
 }
 
 .hidden {
@@ -152,9 +191,20 @@ h1 {
 }
 
 @keyframes dropFall {
-    0% { transform: translateY(0); opacity: 1; }
-    80% { transform: translateY(15px); opacity: 1; }
-    100% { transform: translateY(20px); opacity: 0; }
+    0% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+
+    80% {
+        transform: translateY(15px);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateY(20px);
+        opacity: 0;
+    }
 }
 
 /* Data Cards */
@@ -365,4 +415,47 @@ h1 {
     border-top-color: var(--primary);
     border-radius: 50%;
     animation: spin 1s linear infinite;
+}
+
+/* Log Panel */
+.log-panel {
+    background: var(--card-bg);
+    border-radius: var(--border-radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+    height: 100%;
+    min-height: 80vh;
+    /* Kéo dài tối đa có thể theo màn hình */
+    display: flex;
+    flex-direction: column;
+}
+
+.log-panel h3 {
+    font-size: 0.9rem;
+    color: var(--text-main);
+    font-weight: 700;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+}
+
+.log-container {
+    background: #ffffff;
+    color: #1a202c;
+    border: 1px solid #e2e8f0;
+    font-family: monospace;
+    font-size: 0.8rem;
+    padding: 12px;
+    border-radius: 8px;
+    flex-grow: 1;
+    height: 0;
+    overflow-y: auto;
+}
+
+.log-entry {
+    margin-bottom: 6px;
+    line-height: 1.5;
+    word-break: break-all;
+    border-bottom: 1px dashed #e2e8f0;
+    padding-bottom: 6px;
 }

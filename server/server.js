@@ -63,7 +63,6 @@ wss.on('connection', (ws) => {
 
             // 2. Nhận lệnh điều khiển từ Web Client
             if (isWeb && parsedData.action) {
-                console.log(`[WS] Nhận lệnh từ Web: ${parsedData.action}`);
                 if (esp32Connection && esp32Connection.readyState === 1) {
                     // Gửi lệnh xuống ESP32
                     const command = JSON.stringify({ 
@@ -71,9 +70,6 @@ wss.on('connection', (ws) => {
                         mode: parsedData.mode 
                     });
                     esp32Connection.send(command);
-                    console.log(`[WS] Đã gửi lệnh xuống ESP32:`, command);
-                } else {
-                    console.log('[WS] Thất bại: ESP32 chưa kết nối');
                 }
                 return;
             }

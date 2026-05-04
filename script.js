@@ -10,8 +10,19 @@ const loadingIndicator = document.getElementById('loading-indicator');
 const btnOn = document.getElementById('btn-on');
 const btnOff = document.getElementById('btn-off');
 const btnMode = document.getElementById('btn-mode');
+const cmdLogContainer = document.getElementById('cmd-log-container');
+const dataLogContainer = document.getElementById('data-log-container');
 
 let isAutoMode = true;
+
+function addLog(container, message) {
+    if (!container) return;
+    const entry = document.createElement('div');
+    entry.className = `log-entry`;
+    entry.textContent = message;
+    container.appendChild(entry);
+    container.scrollTop = container.scrollHeight;
+}
 
 // SVG Animation Elements
 const motorWheel = document.getElementById('motor-wheel');
@@ -152,9 +163,13 @@ function initWebSocket() {
         try {
             const data = JSON.parse(event.data);
             updateConnectionStatus(true, data.esp32_connected);
-            
+
             if (data.esp32_connected) {
                 updateUI(data);
+                if (data.humidity !== undefined) {
+                    const esp32Data = { humidity: data.humidity, pump: data.pump, mode: data.mode };
+                    addLog(dataLogContainer, `${JSON.stringify(esp32Data)}`);
+                }
             }
         } catch (error) {
             console.error("Lỗi parse JSON từ server:", error);
@@ -179,6 +194,7 @@ function turnOnPump() {
     btnOn.disabled = true;
     updateUI({ pump: "ON", humidity: humidityValue.textContent.replace('%', '') });
     socket.send(JSON.stringify({ client: "WEB", action: "ON" }));
+    addLog(cmdLogContainer, `[WS] Nhận lệnh từ Web: ON`);
     setTimeout(() => { btnOn.disabled = isAutoMode; }, 500);
 }
 
@@ -188,6 +204,7 @@ function turnOffPump() {
     btnOff.disabled = true;
     updateUI({ pump: "OFF", humidity: humidityValue.textContent.replace('%', '') });
     socket.send(JSON.stringify({ client: "WEB", action: "OFF" }));
+    addLog(cmdLogContainer, `[WS] Nhận lệnh từ Web: OFF`);
     setTimeout(() => { btnOff.disabled = isAutoMode; }, 500);
 }
 
@@ -198,6 +215,7 @@ function toggleMode() {
     const newMode = isAutoMode ? "MANUAL" : "AUTO";
     updateUI({ mode: newMode, pump: pumpStatus.textContent, humidity: humidityValue.textContent.replace('%', '') });
     socket.send(JSON.stringify({ client: "WEB", action: "MODE", mode: newMode }));
+    addLog(cmdLogContainer, `[WS] Nhận lệnh từ Web: MODE`);
     setTimeout(() => { btnMode.disabled = false; }, 500);
 }
 
