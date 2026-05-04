@@ -1,0 +1,368 @@
+:root {
+    --bg-color: #f0f4f8;
+    --card-bg: #ffffff;
+    --text-main: #2d3748;
+    --text-muted: #718096;
+    --primary: #4299e1;
+    --success: #48bb78;
+    --danger: #f56565;
+    --warning: #ed8936;
+    --border-radius: 20px;
+    --shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 480px;
+    width: 100%;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+h1 {
+    font-size: 1.75rem;
+    font-weight: 800;
+    margin-bottom: 16px;
+    color: var(--text-main);
+    letter-spacing: -0.025em;
+}
+
+.status-group {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+.status-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    padding: 6px 12px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.status-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+}
+
+.status-badge.connected {
+    background-color: #c6f6d5;
+    color: #276749;
+}
+
+.status-badge.disconnected {
+    background-color: #fed7d7;
+    color: #c53030;
+}
+
+.scene-card {
+    background: var(--card-bg);
+    border-radius: var(--border-radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+
+.scene-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 12px;
+}
+
+/* SVG Animations */
+.sun {
+    animation: pulse 4s infinite alternate;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 0.8; }
+    100% { transform: scale(1.1); opacity: 1; }
+}
+
+#motor-wheel {
+    transform-origin: 140px 160px;
+}
+
+.motor-running {
+    animation: spin 0.5s linear infinite;
+}
+
+@keyframes spin {
+    100% { transform: rotate(360deg); }
+}
+
+.water-flow {
+    stroke-dashoffset: 20;
+}
+
+.water-flow.running {
+    animation: flow 0.5s linear infinite;
+}
+
+.water-flow.stopped {
+    display: none;
+}
+
+@keyframes flow {
+    to { stroke-dashoffset: 0; }
+}
+
+.hidden {
+    display: none;
+}
+
+.drop {
+    animation: dropFall 1s linear infinite;
+}
+
+@keyframes dropFall {
+    0% { transform: translateY(0); opacity: 1; }
+    80% { transform: translateY(15px); opacity: 1; }
+    100% { transform: translateY(20px); opacity: 0; }
+}
+
+/* Data Cards */
+.data-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.data-card {
+    background: var(--card-bg);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.data-card h3 {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+/* Humidity Circular Gauge */
+.humidity-gauge {
+    width: 80px;
+    height: 80px;
+}
+
+.circular-chart {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    max-height: 250px;
+}
+
+.circle-bg {
+    fill: none;
+    stroke: #edf2f7;
+    stroke-width: 3.8;
+}
+
+.circle {
+    fill: none;
+    stroke-width: 3.8;
+    stroke-linecap: round;
+    transition: stroke-dasharray 1s ease-out, stroke 1s ease;
+    stroke: #4299e1;
+}
+
+.percentage {
+    fill: var(--text-main);
+    font-family: inherit;
+    font-size: 0.6em;
+    text-anchor: middle;
+    font-weight: 700;
+}
+
+/* Pump Status */
+.pump-status-container {
+    margin-bottom: 16px;
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+}
+
+.badge {
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-size: 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.badge.on {
+    background-color: #c6f6d5;
+    color: #276749;
+    box-shadow: 0 0 15px rgba(72, 187, 120, 0.4);
+}
+
+.badge.off {
+    background-color: #fed7d7;
+    color: #c53030;
+}
+
+.badge.unknown {
+    background-color: #edf2f7;
+    color: #a0aec0;
+}
+
+/* Mode Toggle */
+.mode-toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.mode-label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+#btn-mode {
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+#btn-mode.auto {
+    background-color: #ebf8ff;
+    color: #3182ce;
+}
+
+#btn-mode.manual {
+    background-color: #faf5ff;
+    color: #805ad5;
+}
+
+/* Controls */
+.controls {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+}
+
+.btn {
+    flex: 1;
+    border: none;
+    padding: 10px 0;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+    color: white;
+}
+
+.btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.btn:active {
+    transform: scale(0.95);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-on {
+    background-color: var(--success);
+}
+
+.btn-on:hover:not(:disabled) {
+    background-color: #38a169;
+}
+
+.btn-off {
+    background-color: var(--danger);
+}
+
+.btn-off:hover:not(:disabled) {
+    background-color: #e53e3e;
+}
+
+/* Loading */
+.loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-weight: 500;
+    background: white;
+    padding: 12px;
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    width: fit-content;
+    margin: 0 auto;
+    transition: opacity 0.3s ease;
+}
+
+.loading.hidden {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 3px solid #edf2f7;
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
