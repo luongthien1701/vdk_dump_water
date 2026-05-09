@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,18 +8,9 @@
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
-<body>
-<div class="app-layout">
-    <div class="sidebar left-sidebar">
-        <div class="log-panel">
-            <h3>Lệnh điều khiển</h3>
-            <div class="log-container" id="cmd-log-container">
-                <!-- Logs lệnh điều khiển -->
-            </div>
-        </div>
-    </div>
 
-    <div class="container">
+<body>
+    <div class="main-layout">
         <header>
             <h1>Hệ thống tưới cây</h1>
             <div class="status-group">
@@ -34,101 +26,121 @@
         </header>
 
         <main>
-            <!-- Animation Scene -->
-            <div class="scene-card">
-                <svg viewBox="0 0 400 200" class="scene-svg">
-                    <!-- Background / Sky -->
-                    <rect width="400" height="200" fill="#e0f7fa" rx="16" />
-                    <!-- Sun -->
-                    <circle cx="350" cy="40" r="20" fill="#FFD54F" class="sun" />
-                    <!-- Soil -->
-                    <path d="M 220 160 Q 310 140 400 160 L 400 200 L 220 200 Z" fill="#8D6E63" />
-                    
-                    <!-- Soil Moisture overlay (animates height/opacity based on humidity) -->
-                    <path d="M 220 160 Q 310 140 400 160 L 400 200 L 220 200 Z" fill="#4FC3F7" id="soil-moisture-overlay" style="opacity: 0.2; transition: opacity 1s ease;" />
+            <section class="scene-section">
+                <div class="scene-card">
+                    <!-- ...existing SVG scene... -->
+                    <svg viewBox="0 0 400 200" class="scene-svg">
+                        <rect width="400" height="200" fill="#e0f7fa" rx="16" />
+                        <circle cx="350" cy="40" r="20" fill="#FFD54F" class="sun" />
+                        <path d="M 220 160 Q 310 140 400 160 L 400 200 L 220 200 Z" fill="#8D6E63" />
+                        <path d="M 220 160 Q 310 140 400 160 L 400 200 L 220 200 Z" fill="#4FC3F7" id="soil-moisture-overlay" style="opacity: 0.2; transition: opacity 1s ease;" />
+                        <path d="M 320 160 C 320 100 290 80 290 70" stroke="#4CAF50" stroke-width="6" fill="none" stroke-linecap="round"/>
+                        <path d="M 290 70 C 300 90 320 100 320 100 C 320 100 340 80 340 60 C 320 60 290 70 290 70" fill="#81C784" />
+                        <path d="M 305 110 C 290 110 270 90 270 70 C 290 70 305 90 305 110" fill="#66BB6A" />
+                        <path d="M 20 60 L 100 60 L 100 180 L 20 180 Z" fill="#90A4AE" />
+                        <path d="M 20 180 Q 60 190 100 180 L 20 180 Z" fill="#607D8B" />
+                        <path d="M 20 100 L 100 100 L 100 180 L 20 180 Z" fill="#03A9F4" id="tank-water" />
+                        <rect x="15" y="50" width="90" height="10" rx="3" fill="#546E7A" />
+                        <rect x="110" y="140" width="60" height="40" rx="8" fill="#FF7043" />
+                        <circle cx="140" cy="160" r="12" fill="#D84315" id="motor-wheel" />
+                        <rect x="100" y="155" width="10" height="10" fill="#757575" />
+                        <path d="M 170 155 L 290 155 L 290 145" stroke="#9E9E9E" stroke-width="8" fill="none" stroke-linejoin="round"/>
+                        <path d="M 170 155 L 290 155 L 290 145" stroke="#29B6F6" stroke-width="4" fill="none" stroke-dasharray="10,10" class="water-flow stopped" id="water-flow" />
+                        <g id="water-drops" class="hidden">
+                            <circle cx="290" cy="145" r="3" fill="#29B6F6" class="drop" style="animation-delay: 0s;" />
+                            <circle cx="290" cy="145" r="3" fill="#29B6F6" class="drop" style="animation-delay: 0.3s;" />
+                            <circle cx="290" cy="145" r="3" fill="#29B6F6" class="drop" style="animation-delay: 0.6s;" />
+                        </g>
+                    </svg>
+                </div>
+            </section>
 
-                    <!-- Plant Stem -->
-                    <path d="M 320 160 C 320 100 290 80 290 70" stroke="#4CAF50" stroke-width="6" fill="none" stroke-linecap="round"/>
-                    <!-- Leaves -->
-                    <path d="M 290 70 C 300 90 320 100 320 100 C 320 100 340 80 340 60 C 320 60 290 70 290 70" fill="#81C784" />
-                    <path d="M 305 110 C 290 110 270 90 270 70 C 290 70 305 90 305 110" fill="#66BB6A" />
+            <section class="chart-section">
+                <div class="chart-card">
+                    <h3>Biểu đồ độ ẩm đất</h3>
+                    <canvas id="humidityChart" width="400" height="180"></canvas>
+                </div>
+            </section>
 
-                    <!-- Water Tank -->
-                    <path d="M 20 60 L 100 60 L 100 180 L 20 180 Z" fill="#90A4AE" />
-                    <path d="M 20 180 Q 60 190 100 180 L 20 180 Z" fill="#607D8B" />
-                    <!-- Tank water -->
-                    <path d="M 20 100 L 100 100 L 100 180 L 20 180 Z" fill="#03A9F4" id="tank-water" />
-                    <!-- Tank Lid -->
-                    <rect x="15" y="50" width="90" height="10" rx="3" fill="#546E7A" />
-
-                    <!-- Pump Motor -->
-                    <rect x="110" y="140" width="60" height="40" rx="8" fill="#FF7043" />
-                    <circle cx="140" cy="160" r="12" fill="#D84315" id="motor-wheel" />
-                    <!-- Connecting pipe from tank to motor -->
-                    <rect x="100" y="155" width="10" height="10" fill="#757575" />
-
-                    <!-- Main Pipe to plant -->
-                    <path d="M 170 155 L 290 155 L 290 145" stroke="#9E9E9E" stroke-width="8" fill="none" stroke-linejoin="round"/>
-                    <!-- Water flow in pipe -->
-                    <path d="M 170 155 L 290 155 L 290 145" stroke="#29B6F6" stroke-width="4" fill="none" stroke-dasharray="10,10" class="water-flow stopped" id="water-flow" />
-
-                    <!-- Water drops from pipe -->
-                    <g id="water-drops" class="hidden">
-                        <circle cx="290" cy="145" r="3" fill="#29B6F6" class="drop" style="animation-delay: 0s;" />
-                        <circle cx="290" cy="145" r="3" fill="#29B6F6" class="drop" style="animation-delay: 0.3s;" />
-                        <circle cx="290" cy="145" r="3" fill="#29B6F6" class="drop" style="animation-delay: 0.6s;" />
-                    </g>
-                </svg>
-            </div>
-
-            <div class="data-cards">
-                <div class="data-card humidity-card">
-                    <h3>Độ ẩm đất</h3>
-                    <div class="humidity-gauge">
-                        <svg viewBox="0 0 36 36" class="circular-chart">
-                            <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                            <path class="circle" id="humidity-circle" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                            <text x="18" y="20.35" class="percentage" id="humidity-value">--%</text>
-                        </svg>
+            <section class="info-section">
+                <div class="data-cards">
+                    <div class="data-card humidity-card">
+                        <h3>Độ ẩm đất</h3>
+                        <div class="humidity-gauge">
+                            <svg viewBox="0 0 36 36" class="circular-chart">
+                                <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                <path class="circle" id="humidity-circle" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                <text x="18" y="20.35" class="percentage" id="humidity-value">--%</text>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="data-card pump-card">
+                        <h3>Trạng thái bơm</h3>
+                        <div class="mode-toggle-container">
+                            <span class="mode-label">Chế độ:</span>
+                            <button id="btn-mode" class="badge auto" onclick="toggleMode()">Tự động</button>
+                        </div>
+                        <div class="pump-status-container">
+                            <span id="pump-status" class="badge unknown">Unknown</span>
+                        </div>
+                        <div class="controls">
+                            <button id="btn-on" class="btn btn-on" onclick="turnOnPump()">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Bật
+                            </button>
+                            <button id="btn-off" class="btn btn-off" onclick="turnOffPump()">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg> Tắt
+                            </button>
+                        </div>
                     </div>
                 </div>
+            </section>
 
-                <div class="data-card pump-card">
-                    <h3>Trạng thái bơm</h3>
-                    <div class="mode-toggle-container">
-                        <span class="mode-label">Chế độ:</span>
-                        <button id="btn-mode" class="badge auto" onclick="toggleMode()">Tự động</button>
-                    </div>
-                    <div class="pump-status-container">
-                        <span id="pump-status" class="badge unknown">Unknown</span>
-                    </div>
-                    <div class="controls">
-                        <button id="btn-on" class="btn btn-on" onclick="turnOnPump()">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Bật
-                        </button>
-                        <button id="btn-off" class="btn btn-off" onclick="turnOffPump()">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg> Tắt
-                        </button>
-                    </div>
+            <section class="config-section">
+                <div class="data-card config-card">
+                    <h3>Điều chỉnh thông số hệ thống</h3>
+                    <form id="config-form" autocomplete="off">
+                        <div class="form-group">
+                            <label for="dry-threshold">Ngưỡng khô (DRY_THRESHOLD):</label>
+                            <div class="slider-input-group">
+                                <input type="range" id="dry-threshold-slider" min="0" max="4095" step="1">
+                                <input type="number" id="dry-threshold" name="dry-threshold" min="0" max="4095" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="pump-time">Thời gian bơm (PUMP_TIME, ms):</label>
+                            <div class="slider-input-group">
+                                <input type="range" id="pump-time-slider" min="100" max="60000" step="100">
+                                <input type="number" id="pump-time" name="pump-time" min="100" max="60000" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="wait-time">Thời gian chờ (WAIT_TIME, ms):</label>
+                            <div class="slider-input-group">
+                                <input type="range" id="wait-time-slider" min="100" max="60000" step="100">
+                                <input type="number" id="wait-time" name="wait-time" min="100" max="60000" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-save">Lưu thay đổi</button>
+                    </form>
                 </div>
-            </div>
-            
+            </section>
+
+            <section class="log-section">
+                <div class="log-panel">
+                    <h3>Nhật ký hệ thống</h3>
+                    <div class="log-container" id="cmd-log-container"></div>
+                    <div class="log-container" id="data-log-container"></div>
+                </div>
+            </section>
+
             <div id="loading-indicator" class="loading hidden">
                 <div class="spinner"></div>
                 <span>Đang xử lý...</span>
             </div>
         </main>
     </div>
-
-    <div class="sidebar right-sidebar">
-        <div class="log-panel">
-            <h3>Dữ liệu ESP32</h3>
-            <div class="log-container" id="data-log-container">
-                <!-- Logs dữ liệu ESP32 -->
-            </div>
-        </div>
-    </div>
-</div>
     <script src="script.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </body>
+
 </html>

@@ -7,15 +7,15 @@
 // =======================
 const char* ssid = "...";
 const char* password = "12345678";
-const char* server_host = "20.189.124.16";
-const uint16_t server_port = 80;
+const char* server_host = "192.168.35.183";
+const uint16_t server_port = 3000;
 
 #define SOIL_PIN 0
 #define RELAY_PIN 4
 
-#define DRY_THRESHOLD 3000
-#define PUMP_TIME 2000
-#define WAIT_TIME 5000
+int DRY_THRESHOLD = 3000;
+int PUMP_TIME = 2000;
+int WAIT_TIME = 5000;
 #define SAMPLE_SIZE 7
 #define INIT_TIME 3000
 
@@ -78,8 +78,20 @@ void handleMessage(uint8_t* payload) {
   Action action = parseAction(doc["action"]);
   bool changed = false;
 
-  switch (isAutoMode) {
+  // Xử lý lệnh cấu hình
+  if (action == ACT_UNKNOWN && doc["action"] && !strcmp(doc["action"], "CONFIG")) {
+    if (doc["config"]) {
+      JsonObject cfg = doc["config"];
+      if (cfg["DRY_THRESHOLD"]) DRY_THRESHOLD = cfg["DRY_THRESHOLD"];
+      if (cfg["PUMP_TIME"]) PUMP_TIME = cfg["PUMP_TIME"];
+      if (cfg["WAIT_TIME"]) WAIT_TIME = cfg["WAIT_TIME"];
+      Serial.printf("[CONFIG] DRY=%d, PUMP=%d, WAIT=%d\n", DRY_THRESHOLD, PUMP_TIME, WAIT_TIME);
+      sendDataToServer(millis(), true);
+    }
+    return;
+  }
 
+  switch (isAutoMode) {
     // ================= AUTO =================
     case true:
       switch (action) {
@@ -91,16 +103,13 @@ void handleMessage(uint8_t* payload) {
             changed = true;
           }
           break;
-
         case ACT_ON:
         case ACT_OFF:
           Serial.println("AUTO -> ignore");
           break;
-
         default: return;
       }
       break;
-
     // ================= MANUAL =================
     case false:
       switch (action) {
@@ -108,12 +117,10 @@ void handleMessage(uint8_t* payload) {
           setPump(true);
           changed = true;
           break;
-
         case ACT_OFF:
           setPump(false);
           changed = true;
           break;
-
         case ACT_MODE:
           if (!strcmp(doc["mode"], "AUTO")) {
             isAutoMode = true;
@@ -121,12 +128,10 @@ void handleMessage(uint8_t* payload) {
             changed = true;
           }
           break;
-
         default: return;
       }
       break;
   }
-
   if (changed) sendDataToServer(millis(), true);
 }
 

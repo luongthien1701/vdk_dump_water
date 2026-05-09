@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { WebSocketServer } = require('ws');
 const http = require('http');
+const { clear } = require('console');
 
 const app = express();
 const PORT = 3000;
@@ -12,6 +13,9 @@ app.use(express.json());
 
 // Biến lưu trữ trạng thái hệ thống
 let esp32Connection = null;
+let esp32Timeout = null;
+let commandLock = false;
+const ESP32_TIMEOUT_MS = 10000; // 10 giây không gửi data => offline
 const webClients = new Set();
 let currentData = {
     humidity: 0,
@@ -20,6 +24,25 @@ let currentData = {
     esp32_connected: false
 };
 
+function resetESP32Timeout() {
+    clearTimeout(esp32Timeout);
+
+    esp32Timeout = setTimeout(() => {
+        console.log('[WS] ESP32 Timeout');
+
+        currentData.esp32_connected = false;
+
+        if (esp32Connection) {
+            try {
+                esp32Connection.close();
+            } catch (e) {}
+        }
+
+        esp32Connection = null;
+
+        broadcastToWebClients();
+    }, ESP32_TIMEOUT_MS);
+}
 // Tạo HTTP server từ Express app
 const server = http.createServer(app);
 
@@ -63,19 +86,47 @@ wss.on('connection', (ws) => {
 
             // 2. Nhận lệnh điều khiển từ Web Client
             if (isWeb && parsedData.action) {
-                if (esp32Connection && esp32Connection.readyState === 1) {
-                    // Gửi lệnh xuống ESP32
-                    const command = JSON.stringify({ 
-                        action: parsedData.action, 
-                        mode: parsedData.mode 
-                    });
-                    esp32Connection.send(command);
+
+                if (commandLock) {
+                    ws.send(JSON.stringify({
+                        error: "System busy"
+                    }));
+                    return;
                 }
+
+                if (esp32Connection && esp32Connection.readyState === 1) {
+
+                    commandLock = true;
+
+                    let commandObj = {
+                        action: parsedData.action
+                    };
+
+                    if (parsedData.mode)
+                        commandObj.mode = parsedData.mode;
+
+                    if (
+                        parsedData.action === 'CONFIG' &&
+                        parsedData.config
+                    ) {
+                        commandObj.config = parsedData.config;
+                    }
+
+                    esp32Connection.send(JSON.stringify(commandObj));
+
+                    // unlock sau 1s
+                    setTimeout(() => {
+                        commandLock = false;
+                    }, 1000);
+                }
+
                 return;
             }
 
             // 3. Xử lý dữ liệu từ ESP32 (Nếu không phải Web, và có chứa data cảm biến)
             if (!isWeb && (parsedData.humidity !== undefined || parsedData.pump !== undefined || parsedData.mode !== undefined)) {
+                resetESP32Timeout(); // Reset timeout khi nhận được data từ ESP32
+
                 if (!isESP32) {
                     isESP32 = true;
                     esp32Connection = ws;
@@ -105,6 +156,7 @@ wss.on('connection', (ws) => {
         }
         if (isESP32) {
             console.log('[WS] ESP32 Disconnected');
+            clearTimeout(esp32Timeout);
             esp32Connection = null;
             currentData.esp32_connected = false;
             broadcastToWebClients(); // Báo cho web biết ESP32 đã offline

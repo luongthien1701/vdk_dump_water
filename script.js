@@ -15,6 +15,11 @@ const dataLogContainer = document.getElementById('data-log-container');
 
 let isAutoMode = true;
 
+// Lưu lịch sử độ ẩm để vẽ biểu đồ
+let humidityHistory = [];
+let humidityChart = null;
+const MAX_HISTORY = 30; // Số điểm trên biểu đồ
+
 function addLog(container, message) {
     if (!container) return;
     const entry = document.createElement('div');
@@ -88,11 +93,17 @@ function updateUI(data) {
         const opacity = 0.1 + (h / 100) * 0.7;
         soilMoistureOverlay.style.opacity = opacity;
 
+        // Thêm vào lịch sử và cập nhật biểu đồ
+        addHumidityHistory(h);
+        updateHumidityChart();
+
     } else if (data.humidity === '--') {
         humidityValue.textContent = '--%';
         humidityCircle.setAttribute('stroke-dasharray', `0, 100`);
         humidityCircle.style.stroke = '#cbd5e0';
         soilMoistureOverlay.style.opacity = 0;
+        humidityHistory = [];
+        updateHumidityChart();
     }
 
     // 2. Cập nhật trạng thái máy bơm và Animation SVG
@@ -222,4 +233,101 @@ function toggleMode() {
 // Khởi tạo khi trang load xong
 document.addEventListener("DOMContentLoaded", () => {
     initWebSocket();
+    setupConfigForm();
+    setupHumidityChart();
 });
+
+// Xử lý form điều chỉnh thông số
+function setupConfigForm() {
+    const form = document.getElementById('config-form');
+    if (!form) return;
+    // Slider và input number
+    const drySlider = document.getElementById('dry-threshold-slider');
+    const dryInput = document.getElementById('dry-threshold');
+    const pumpSlider = document.getElementById('pump-time-slider');
+    const pumpInput = document.getElementById('pump-time');
+    const waitSlider = document.getElementById('wait-time-slider');
+    const waitInput = document.getElementById('wait-time');
+
+    // Giá trị mặc định
+    drySlider.value = dryInput.value = 3000;
+    pumpSlider.value = pumpInput.value = 2000;
+    waitSlider.value = waitInput.value = 5000;
+
+    // Đồng bộ slider <-> input number
+    drySlider.addEventListener('input', () => { dryInput.value = drySlider.value; });
+    dryInput.addEventListener('input', () => { drySlider.value = dryInput.value; });
+    pumpSlider.addEventListener('input', () => { pumpInput.value = pumpSlider.value; });
+    pumpInput.addEventListener('input', () => { pumpSlider.value = pumpInput.value; });
+    waitSlider.addEventListener('input', () => { waitInput.value = waitSlider.value; });
+    waitInput.addEventListener('input', () => { waitSlider.value = waitInput.value; });
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const dry = parseInt(dryInput.value);
+        const pump = parseInt(pumpInput.value);
+        const wait = parseInt(waitInput.value);
+        // Gửi lệnh lên server (qua websocket)
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+                client: "WEB",
+                action: "CONFIG",
+                config: {
+                    DRY_THRESHOLD: dry,
+                    PUMP_TIME: pump,
+                    WAIT_TIME: wait
+                }
+            }));
+            addLog(cmdLogContainer, `[WS] Gửi cấu hình mới: DRY=${dry}, PUMP=${pump}, WAIT=${wait}`);
+        }
+    });
+}
+
+// Biểu đồ độ ẩm
+function setupHumidityChart() {
+    const ctx = document.getElementById('humidityChart').getContext('2d');
+    humidityChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Độ ẩm đất (%)',
+                data: [],
+                borderColor: '#4299e1',
+                backgroundColor: 'rgba(66,153,225,0.1)',
+                tension: 0.3,
+                pointRadius: 2,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: false,
+            scales: {
+                y: {
+                    min: 0,
+                    max: 100,
+                    title: { display: true, text: '%' }
+                },
+                x: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
+function addHumidityHistory(h) {
+    const now = new Date();
+    humidityHistory.push({
+        value: h,
+        time: now.toLocaleTimeString('vi-VN', { hour12: false })
+    });
+    if (humidityHistory.length > MAX_HISTORY) humidityHistory.shift();
+}
+
+function updateHumidityChart() {
+    if (!humidityChart) return;
+    humidityChart.data.labels = humidityHistory.map(x => x.time);
+    humidityChart.data.datasets[0].data = humidityHistory.map(x => x.value);
+    humidityChart.update();
+}
